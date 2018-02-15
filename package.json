@@ -5,7 +5,8 @@
   "scripts": {
     "autogypi": "autogypi",
     "node-gyp": "node-gyp",
-    "install": "autogypi && node-gyp configure --msvs_version=2015 build"
+    "submodules": "git clone --depth=1 https://github.com/Nexus-Mods/ba2tk ba2tk",
+    "install": "npm run submodules && autogypi && node-gyp configure --msvs_version=2015 build"
   },
   "author": "Black Tree Gaming Ltd.",
   "license": "GPL-3.0",
