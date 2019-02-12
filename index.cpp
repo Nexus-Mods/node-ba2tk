@@ -1,5 +1,6 @@
 #include "nbind/noconflict.h"
 #include "ba2tk/src/ba2archive.h"
+#include "string_cast.h"
 #include <vector>
 #include <nan.h>
 
@@ -72,7 +73,7 @@ public:
   }
 
   void read(const char *fileName) {
-    BA2::EErrorCode err = m_Wrapped->read(fileName);
+    BA2::EErrorCode err = m_Wrapped->read(toWC(fileName, CodePage::UTF8, strlen(fileName)).c_str());
     if (err != BA2::ERROR_NONE) {
       throw std::runtime_error(convertErrorCode(err));
     }
