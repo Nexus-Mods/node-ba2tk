@@ -13,7 +13,7 @@
   "dependencies": {
     "autogypi": "^0.2.2",
     "nbind": "TanninOne/nbind",
-    "node-gyp": "^3.8.0",
+    "node-gyp": "^6.1.0",
     "tmp": "0.0.29"
   }
 }
