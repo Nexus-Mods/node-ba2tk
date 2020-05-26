@@ -1,6 +1,6 @@
 {
   "name": "ba2tk",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "read information from gamebryo ba2 files (very basic)",
   "scripts": {
     "autogypi": "autogypi",
