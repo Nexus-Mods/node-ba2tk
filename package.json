@@ -1,6 +1,6 @@
 {
   "name": "ba2tk",
-  "version": "1.0.6",
+  "version": "2.0.0",
   "description": "read information from gamebryo ba2 files (very basic)",
   "scripts": {
     "autogypi": "autogypi",
@@ -12,7 +12,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     "autogypi": "^0.2.2",
-    "nbind": "TanninOne/nbind",
+    "node-addon-api": "^4.0.0",
     "node-gyp": "^6.1.0",
     "tmp": "0.0.29"
   }

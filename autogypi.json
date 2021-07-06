@@ -1,6 +1,6 @@
 {
 	"dependencies": [
-    "nbind"
+    "node-addon-api"
 	],
 	"includes": []
 }

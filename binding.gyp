@@ -8,11 +8,16 @@
             "sources": [
                 "ba2tk/src/ba2archive.cpp",
                 "ba2tk/src/ba2exception.cpp",
+                "string_cast.cpp",
                 "index.cpp"
             ],
             "include_dirs": [
+                "<!(node -p \"require('node-addon-api').include_dir\")",
                 "./ba2tk/src/common",
                 "./zlib/include"
+            ],
+            "dependencies": [
+              "<!(node -p \"require('node-addon-api').gyp\")"
             ],
             "cflags!": ["-fno-exceptions"],
             "cflags_cc!": ["-fno-exceptions"],
@@ -31,6 +36,11 @@
                             "VCCLCompilerTool": {
                                 "ExceptionHandling": 1
                             }
+                        },
+                        "msbuild_settings": {
+                          "ClCompile": {
+                            "AdditionalOptions": ['-std:c++17']
+                          }
                         }
                     }
                 ],

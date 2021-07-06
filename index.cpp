@@ -1,9 +1,11 @@
-#include "nbind/noconflict.h"
+#define _WINSOCKAPI_
 #include "ba2tk/src/ba2archive.h"
 #include "string_cast.h"
+#include "napi_helpers.h"
 #include <vector>
-#include <nan.h>
+#include <napi.h>
 
+#include <iostream>
 
 const char *convertErrorCode(BA2::EErrorCode code) {
   switch (code) {
@@ -19,137 +21,161 @@ const char *convertErrorCode(BA2::EErrorCode code) {
   }
 }
 
-class ExtractAllWorker : public Nan::AsyncWorker {
+class ExtractAllWorker : public Napi::AsyncWorker {
 public:
   ExtractAllWorker(std::shared_ptr<BA2::Archive> archive,
     const char *outputDirectory,
     bool overwrite,
-    Nan::Callback *appCallback)
-    : Nan::AsyncWorker(appCallback)
+    const Napi::Function &appCallback)
+    : Napi::AsyncWorker(appCallback)
     , m_Archive(archive)
-    , m_OutputDirectory(outputDirectory)
+    , m_FilePath(outputDirectory)
     , m_Overwrite(overwrite)
   {}
 
   void Execute() {
     BA2::EErrorCode code;
-    code = m_Archive->extractAll(m_OutputDirectory.c_str(),
+    code = m_Archive->extractAll(m_FilePath.c_str(),
       [](int value, std::string fileName) { return true; }, true);
     if (code != BA2::ERROR_NONE) {
-      SetErrorMessage(convertErrorCode(code));
+      SetError(convertErrorCode(code));
     }
   }
 
-  void HandleOKCallback() {
-    Nan::HandleScope scope;
-
-    v8::Local<v8::Value> argv[] = {
-      Nan::Null()
-    };
-
-    callback->Call(1, argv);
+  virtual void OnOK() override {
+    Callback().Call(Receiver().Value(), std::initializer_list<napi_value>{ Env().Null() });
   }
 private:
   std::shared_ptr<BA2::Archive> m_Archive;
-  std::string m_OutputDirectory;
+  std::string m_FilePath;
   bool m_Overwrite;
 };
 
 
-class BA2Archive {
+class BA2Archive : public Napi::ObjectWrap<BA2Archive> {
 public:
-  BA2Archive(const char *fileName)
-    : m_Wrapped(new BA2::Archive())
-  {
-    read(fileName);
+  static Napi::Object Init(Napi::Env env, Napi::Object exports) {
+    Napi::Function func = DefineClass(env, "BA2Archive", {
+      InstanceMethod("getType", &BA2Archive::getType),
+      InstanceMethod("getFileList", &BA2Archive::getFileList),
+      InstanceMethod("extractAll", &BA2Archive::extractAll),
+    });
+    Napi::FunctionReference *constructor = new Napi::FunctionReference();
+    *constructor = Napi::Persistent(func);
+    exports.Set("BA2Archive", func);
+
+    env.SetInstanceData<Napi::FunctionReference>(constructor);
+    return exports;
   }
 
-  BA2Archive(const BA2Archive &ref)
-    : m_Wrapped(ref.m_Wrapped)
+  BA2Archive(const Napi::CallbackInfo& info)
+    : Napi::ObjectWrap<BA2Archive>(info)
+    , m_Wrapped(new BA2::Archive())
   {
   }
+
+  void readAsync(const Napi::CallbackInfo& info, const std::string& filePath, const Napi::Function& cb) {
+    const Napi::Env env = info.Env();
+    std::thread* loadThread;
+
+    m_ThreadCB = Napi::ThreadSafeFunction::New(info.Env(), cb,
+      "AsyncLoadCB", 0, 1, [loadThread](Napi::Env) {
+      loadThread->join();
+      delete loadThread;
+    });
+
+
+    loadThread = new std::thread{ [this, env, filePath]() {
+      auto callback = [](Napi::Env env, Napi::Function jsCallback, BA2Archive* result) {
+        jsCallback.Call({ env.Null(), result->Value() });
+      };
+
+      auto callbackError = [](Napi::Env env, Napi::Function jsCallback, std::string* err = nullptr) {
+        jsCallback.Call({Napi::String::New(env, err->c_str())});
+      };
+
+      try {
+        read(filePath);
+        m_ThreadCB.Acquire();
+        m_ThreadCB.BlockingCall(this, callback);
+      }
+      catch (const std::exception& e) {
+        std::string* err = new std::string{ e.what() };
+        m_ThreadCB.Acquire();
+        m_ThreadCB.BlockingCall(err, callbackError);
+      }
+
+      m_ThreadCB.Release();
+    } };
+  }
+
+  static Napi::Object CreateNewItem(Napi::Env env) {
+    Napi::FunctionReference* constructor = env.GetInstanceData<Napi::FunctionReference>();
+    return constructor->New({ });
+  }
+
 
   ~BA2Archive() {
   }
 
-  void read(const char *fileName) {
-    BA2::EErrorCode err = m_Wrapped->read(toWC(fileName, CodePage::UTF8, strlen(fileName)).c_str());
+private:
+
+  void read(const std::string &filePath) {
+    BA2::EErrorCode err = m_Wrapped->read(toWC(filePath.c_str(), CodePage::UTF8, filePath.length()).c_str());
     if (err != BA2::ERROR_NONE) {
       throw std::runtime_error(convertErrorCode(err));
     }
   }
 
-  const char *getType() const {
+  Napi::Value getType(const Napi::CallbackInfo &info) {
     switch (m_Wrapped->getType()) {
-      case BA2::TYPE_GENERAL: return "general";
-      case BA2::TYPE_DX10: return "dx10";
-      default: return nullptr;
+      case BA2::TYPE_GENERAL: return Napi::String::From(info.Env(), "general");
+      case BA2::TYPE_DX10: return Napi::String::From(info.Env(), "dx10");
+      default: return info.Env().Null();
     }
   }
 
-  std::vector<std::string> getFileList() const {
-    return m_Wrapped->getFileList();
+  Napi::Value getFileList(const Napi::CallbackInfo& info) {
+    return toNAPI(info.Env(), m_Wrapped->getFileList());
   }
-
-  void extractAll(const char *outputDirectory, bool overwrite, nbind::cbFunction callback) const {
-    Nan::AsyncQueueWorker(
-      new ExtractAllWorker(m_Wrapped, outputDirectory, overwrite,
-        new Nan::Callback(callback.getJsFunction())
-      ));
+    
+  Napi::Value extractAll(const Napi::CallbackInfo& info) {
+    Napi::String outputDirectory = info[0].ToString();
+    Napi::Boolean overwrite = info[1].ToBoolean();
+    Napi::Function callback = info[2].As<Napi::Function>();
+    auto worker = new ExtractAllWorker(m_Wrapped,
+                                       outputDirectory.Utf8Value().c_str(),
+                                       overwrite,
+                                       callback);
+    worker->Queue();
+    return info.Env().Undefined();
   }
 
 private:
   std::shared_ptr<BA2::Archive> m_Wrapped;
+
+  Napi::ThreadSafeFunction m_ThreadCB;
 };
 
-class LoadWorker : public Nan::AsyncWorker {
-public:
-  LoadWorker(const char *fileName, Nan::Callback *appCallback)
-    : Nan::AsyncWorker(appCallback)
-    , m_OutputDirectory(fileName)
-  {
-  }
+Napi::Value loadBA2(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::HandleScope scope(env);
 
-  void Execute() {
-    try {
-      m_Result = new BA2Archive(m_OutputDirectory.c_str());
-    }
-    catch (const std::exception &e) {
-      SetErrorMessage(e.what());
-    }
-  }
+  Napi::String filePath = info[0].ToString();
+  Napi::Function cb = info[1].As<Napi::Function>();
 
-  void HandleOKCallback() {
-    Nan::HandleScope scope;
+  Napi::Object result = BA2Archive::CreateNewItem(env);
+  BA2Archive* resultObj = BA2Archive::Unwrap(result);
 
-    v8::Local<v8::Value> argv[] = {
-      Nan::Null()
-      , nbind::convertToWire(*m_Result)
-    };
+  resultObj->readAsync(info, filePath, cb);
 
-    callback->Call(2, argv);
-    delete m_Result;
-  }
-private:
-  BA2Archive *m_Result;
-  std::string m_OutputDirectory;
-};
-
-
-void loadBA2(const char *fileName, nbind::cbFunction &callback) {
-  Nan::AsyncQueueWorker(
-    new LoadWorker(
-      fileName,
-      new Nan::Callback(callback.getJsFunction())
-  ));
+  return info.Env().Undefined();
 }
 
-
-NBIND_CLASS(BA2Archive) {
-  NBIND_CONSTRUCT<const char*>();
-  NBIND_GETTER(getType);
-  NBIND_GETTER(getFileList);
-  NBIND_METHOD(extractAll);
+Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+  exports.Set("loadBA2", Napi::Function::New(env, loadBA2));
+  BA2Archive::Init(env, exports);
+  return exports;
 }
 
-NBIND_FUNCTION(loadBA2);
+NODE_API_MODULE(BA2Archive, InitAll)
