@@ -1,19 +1,31 @@
 {
   "name": "ba2tk",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "read information from gamebryo ba2 files (very basic)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nexus-Mods/node-ba2tk.git"
+  },
   "scripts": {
-    "autogypi": "autogypi",
-    "node-gyp": "node-gyp",
+    "prebuild": "prebuild.cmd -r napi -t 4 -a x64 --prepack codesign",
+    "preinstall": "autogypi",
     "submodules": "git clone --depth=1 https://github.com/Nexus-Mods/ba2tk ba2tk || exit /b 0",
-    "install": "npm run submodules && autogypi && node-gyp configure build"
+    "rebuild": "npm run submodules && autogypi && node-gyp rebuild",
+    "install": "prebuild-install -r napi -t 4 -a x64 || npm run rebuild"
+  },
+  "binary": {
+    "napi_versions": [4]
   },
   "author": "Black Tree Gaming Ltd.",
   "license": "GPL-3.0",
+  "devDependencies": {
+    "prebuild": "^11.0.3"
+  },
   "dependencies": {
     "autogypi": "^0.2.2",
     "node-addon-api": "^4.0.0",
     "node-gyp": "^9.0.0",
+    "prebuild-install": "7.1.0",
     "tmp": "0.0.29"
   }
 }
