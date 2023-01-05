@@ -3,6 +3,7 @@
 #include "string_cast.h"
 #include "napi_helpers.h"
 #include <vector>
+#include <thread>
 #include <napi.h>
 
 #include <iostream>

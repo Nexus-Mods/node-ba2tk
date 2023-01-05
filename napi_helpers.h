@@ -2,13 +2,13 @@
 #include "string_cast.h"
 
 template<typename T>
-Napi::Value toNAPI(Napi::Env &env, const T &input);
+Napi::Value toNAPI(const Napi::Env &env, const T &input);
 
 template<typename T>
 T fromNAPI(const Napi::Value &info);
 
 template<typename T>
-Napi::Value toNAPI(Napi::Env &env, const std::vector<T> &input) {
+Napi::Value toNAPI(const Napi::Env &env, const std::vector<T> &input) {
   Napi::Array result = Napi::Array::New(env, input.size());
   uint32_t index = 0;
   for (const auto &iter : input) {
@@ -32,7 +32,7 @@ std::string format(const char *format, Args... args)
 
 
 template<>
-Napi::Value toNAPI<std::string>(Napi::Env &env, const std::string &input) {
+Napi::Value toNAPI<std::string>(const Napi::Env &env, const std::string &input) {
   return Napi::String::From(env, input);
 }
 
@@ -59,10 +59,12 @@ std::string fromNAPI(const Napi::Value &info) {
   return info.ToString().Utf8Value();
 }
 
+#ifdef _WIN32
 template<>
 std::wstring fromNAPI(const Napi::Value &info) {
   return u8Tou16(info.ToString().Utf8Value());
 }
+#endif
 
 template<>
 int fromNAPI(const Napi::Value &info) {
