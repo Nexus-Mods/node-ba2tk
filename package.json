@@ -1,6 +1,6 @@
 {
   "name": "ba2tk",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "read information from gamebryo ba2 files (very basic)",
   "repository": {
     "type": "git",
