@@ -3,5 +3,8 @@ auto-top.gypi
 auto.gypi
 build
 ba2tk
+yarn-error.log
+
+codesign.bat
 .prebuildrc  
-prebuild  
+prebuilds

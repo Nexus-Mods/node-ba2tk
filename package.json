@@ -1,6 +1,6 @@
 {
   "name": "ba2tk",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "read information from gamebryo ba2 files (very basic)",
   "repository": {
     "type": "git",
@@ -8,9 +8,7 @@
   },
   "scripts": {
     "prebuild": "prebuild.cmd -r napi -t 4 -a x64 --prepack codesign",
-    "preinstall": "autogypi",
-    "submodules": "git clone --depth=1 https://github.com/Nexus-Mods/ba2tk ba2tk || exit /b 0",
-    "rebuild": "npm run submodules && autogypi && node-gyp rebuild",
+    "rebuild": "node fetch_ba2tk.js && autogypi && node-gyp rebuild",
     "install": "prebuild-install -r napi -t 4 -a x64 || npm run rebuild"
   },
   "binary": {
